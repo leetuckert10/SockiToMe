@@ -1,29 +1,41 @@
+"""This code was adapted from a Real Python tutorial on Python socket programming.
+It is available on Github (TLT)."""
+
 import sys
 import selectors
 import json
 import io
 import struct
 
+# Socket communication command and context strings.
+SOCK_SET_ITERATION = "set_iteration"
+SOCK_STATUS = "status"
+SOCK_CONTEXT_ATTACK = "attack"
+SOCK_CONTEXT_MEASUREMENTS = "measurements"
+SOCK_COMMAND = "command"
 
-def create_message(action, value, iteration: int = -1):
+
+def create_message(action, value: str, iteration: int = -1, context: str = SOCK_STATUS):
     return dict(
         type="text/json",
         encoding="utf-8",
-        content=dict(action=action, iteration=iteration, value=value),
+        content=dict(action=action, iteration=iteration, context=context, value=value),
     )
 
 
 class SockMessage:
-    def __init__(self, selector, sock, addr, iteration: int = -1):
-        self.selector = selector
-        self.sock = sock
+    def __init__(self, selector, sock, addr, context: str = None, iteration: int = -1):
+        self._selector = selector
+        self._sock = sock
         self.addr = addr
-        self._iteration = iteration
         self._recv_buffer = b""
         self._send_buffer = b""
         self._message_out_queued = False
         self._jsonheader_len = None
+
         self.jsonheader = None
+        self.context: str = context
+        self.iteration: int = iteration
         self.message_in = None
         self.message_out = None
 
@@ -44,12 +56,12 @@ class SockMessage:
             events = selectors.EVENT_READ | selectors.EVENT_WRITE
         else:
             raise ValueError(f"Invalid events mask mode {repr(mode)}.")
-        self.selector.modify(self.sock, events, data=self)
+        self._selector.modify(self._sock, events, data=self)
 
     def _read(self):
         try:
             # Should be ready to read
-            data = self.sock.recv(4096)
+            data = self._sock.recv(4096)
         except BlockingIOError:
             # Resource temporarily unavailable (errno EWOULDBLOCK)
             pass
@@ -64,7 +76,7 @@ class SockMessage:
             print("Sending", repr(self._send_buffer), "to", self.addr)
             try:
                 # Should be ready to write
-                sent = self.sock.send(self._send_buffer)
+                sent = self._sock.send(self._send_buffer)
             except BlockingIOError:
                 # Resource temporarily unavailable (errno EWOULDBLOCK)
                 pass
@@ -96,8 +108,14 @@ class SockMessage:
 
     def _process_message_in_json_content(self):
         content = self.message_in
+        action = content.get("action")
         message = content.get("value")
-        print(f"got message: {message}")
+        context = content.get("context")
+        iteration = content.get("iteration")
+        if self.iteration == -1 and action == SOCK_SET_ITERATION:
+            self.iteration = iteration
+            self.context = context
+        print(f"Iteration {self.iteration} got message: {message}...")
 
     def _process_message_in_binary_content(self):
         content = self.message_in
@@ -140,7 +158,7 @@ class SockMessage:
     def close(self):
         print("closing connection to", self.addr)
         try:
-            self.selector.unregister(self.sock)
+            self._selector.unregister(self._sock)
         except Exception as e:
             print(
                 "error: selector.unregister() exception for",
@@ -148,7 +166,7 @@ class SockMessage:
             )
 
         try:
-            self.sock.close()
+            self._sock.close()
         except OSError as e:
             print(
                 "error: socket.close() exception for",
@@ -156,7 +174,7 @@ class SockMessage:
             )
         finally:
             # Delete reference to socket object for garbage collection
-            self.sock = None
+            self._sock = None
 
     def queue_message_out(self):
         content = self.message_out["content"]
