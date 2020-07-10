@@ -21,11 +21,11 @@ class SockServer:
     def __init__(self, my_host: str, my_port: int, context: str = None):
         self._host: str = my_host
         self._port: int = my_port
-        self._context = context
+        self._context: str = context
         self._listen_sock = None
         self._sel: selectors = selectors.DefaultSelector()
 
-        self.sock_messages: List = []
+        self.sock_objects: List[SockMessage] = []
 
     def setup_listen_socket(self):
         """This method sets up the listening socket. For each connection, the listening socket will be
@@ -58,7 +58,7 @@ class SockServer:
         sock_message = SockMessage(self._sel, sock=conn, addr=addr)
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self._sel.register(conn, events, data=sock_message)
-        self.sock_messages.append(sock_message)
+        self.sock_objects.append(sock_message)
 
     def close(self):
         """We make the assumption that the client on the other end is going to close itself up when through."""
@@ -67,9 +67,9 @@ class SockServer:
     def send_message(self, action: str, iteration: int, context: str, message: str):
         """When the server needs to send a message to a client, we need to find which client to send it
         to based on the iteration number and the client context."""
-        for conn in self.sock_messages:         # Our list of SockMessage client connections.
-            if conn.iteration == iteration and conn.context == context:
-                conn.message_out = create_message(action=action, value=message, iteration=iteration)
+        for sock_object in self.sock_objects:       # Our list of SockMessage client connections.
+            if sock_object.iteration == iteration and sock_object.context == context:
+                sock_object.message_out = create_message(action=action, value=message, iteration=iteration)
                 break
 
     def event_loop(self):
