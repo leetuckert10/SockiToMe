@@ -316,6 +316,9 @@ class SockMessage:
         self.initialize_input()
 
     def _process_server_action(self):
+        """This method is called by _process_message_in_json_content() when the inbound message was sent
+        to the server instance of SockMessage. We are checking the value of action to determine if we
+        have any processing to do."""
         content = self.message_in
         action = content.get("action", "undefined")
 
@@ -327,9 +330,14 @@ class SockMessage:
                 self.context = context
 
     def _process_client_action(self):
+        """This method is called by _process_message_in_json_content() when the inbound message was sent
+        to the client instance of SockMessage. We are checking the value of action to determine if we
+        have any processing to do."""
         content = self.message_in
         action = content.get("action", "undefined")
 
+        """If we have been issued a command from the server, we execute that command in a subprocess
+        capturing the output so that it can be sent back to the server with create_message()."""
         if action == SOCK_COMMAND:
             value = content.get("value", "undefined")
             cmd: List[str] = value.split()
@@ -337,4 +345,3 @@ class SockMessage:
             self.message_out = create_message(action=SOCK_COMMAND_RESPONSE,
                                               value=output, context=self.context,
                                               iteration=self.iteration)
-#           print(output)
