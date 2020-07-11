@@ -287,6 +287,10 @@ class SockMessage:
                     raise ValueError(f'Missing required header "{reqhdr}".')
 
     def process_message_in(self):
+        """This method is called from read(). This method is actually the wrapper method for the call
+        to _process_message_in_json_content() and )process_message_in_binary_content(). It calls either
+        of these methods based on the content-type. Finally, it calls the initialize() method when the
+        processing operation is complete."""
         content_len = self.jsonheader["content-length"]
         if not len(self._recv_buffer) >= content_len:
             return
@@ -303,5 +307,3 @@ class SockMessage:
             print(f'Binary data received {self.jsonheader["content-type"]} response from', self.addr)
             self._process_message_in_binary_content()
         self.initialize()
-        # Close when response has been processed
-#       self.close()
