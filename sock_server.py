@@ -54,8 +54,9 @@ class SockServer:
         print("Accepted connection from", addr)
         conn.setblocking(False)
         """Keep in mind that the SockMessage instance that is created here is on the server side of the
-        connection! The client connection has its own instance of SockMessage."""
-        sock_message = SockMessage(self._sel, sock=conn, addr=addr)
+        connection! The client connection has its own instance of SockMessage. Note setting of the
+        server_instance flag."""
+        sock_message = SockMessage(self._sel, sock=conn, addr=addr, server_instance=True)
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self._sel.register(conn, events, data=sock_message)
         self.sock_objects.append(sock_message)
@@ -111,11 +112,11 @@ def main():
     time.sleep(20)
 
     # Just a sample message for testing.
-    server.send_message(action=SOCK_STATUS, iteration=5,
+    server.send_message(action=SOCK_COMMAND, iteration=5,
                         context=SOCK_CONTEXT_ATTACK,
-                        message="Ready, Aim, FIIIIIIRE!!!")
+                        message="nmap -v -A scanme.nmap.org")
 
-    time.sleep(50)
+    time.sleep(90)
     server.close()
 
 

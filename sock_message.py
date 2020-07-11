@@ -1,11 +1,14 @@
 """This code was adapted from a Real Python tutorial on Python socket programming.
 It is available on Github (TLT)."""
 
-import sys
-import selectors
-import json
 import io
+import sys
+import json
 import struct
+import selectors
+import subprocess
+
+from typing import List
 
 # Socket communication command and context strings.
 SOCK_SET_ITERATION = "set_iteration"
@@ -13,6 +16,7 @@ SOCK_STATUS = "status"
 SOCK_CONTEXT_ATTACK = "attack"
 SOCK_CONTEXT_MEASUREMENTS = "measurements"
 SOCK_COMMAND = "command"
+SOCK_COMMAND_RESPONSE = "command response"
 
 
 def create_message(action, value: str, iteration: int = -1, context: str = SOCK_STATUS):
@@ -31,7 +35,8 @@ def create_message(action, value: str, iteration: int = -1, context: str = SOCK_
 
 class SockMessage:
     """This class defines and manages the message stack that is shared between SockServe and SockClient. The
-    message stack defined here consists of the following:
+    server_instance flag is set to True when SockServer instantiated this class. The message stack defined
+    here consists of the following:
     1.  A fixed length 2-byte header in big endian network format that gives the length of JSON header that
         follows.
     2.  Next is a serialized JSON header in Unicode text with UTF-8 encoding. The length of the JSON header
@@ -49,10 +54,12 @@ class SockMessage:
 
     All the SockServer connections to a client and all the clients connections to SockServer have an private
     instance of this class. Be careful when modifying any of the methods that begin with "_". (TLT)"""
-    def __init__(self, selector, sock, addr, context: str = None, iteration: int = -1):
+    def __init__(self, selector, sock, addr, context: str = None, iteration: int = -1,
+                 server_instance: bool = False):
         self._selector = selector
         self._sock = sock
         self.addr = addr
+        self._server_instance = server_instance
         self._recv_buffer = b""
         self._send_buffer = b""
         self._message_out_queued = False
@@ -64,13 +71,17 @@ class SockMessage:
         self.message_in = None
         self.message_out = None
 
-    def initialize(self):
-        """This method reinitialized various 'state' flags and message containers in between the sending
-        and receiving of a message. It is called in process_message_in() and in _write()."""
-        self._message_out_queued = False
+    def initialize_input(self):
+        """This method re-initializes various 'state' flags and message containers at the end of
+        processing an inbound message. It is called by process_message_in()."""
         self._jsonheader_len = None
         self.jsonheader = None
         self.message_in = None
+
+    def initialize_output(self):
+        """This method re-initializes various 'state' flags and message containers at the end of
+        processing an outbound message. It is called in _write()."""
+        self._message_out_queued = False
         self.message_out = None
 
     def _set_selector_events_mask(self, mode):
@@ -120,7 +131,7 @@ class SockMessage:
             else:
                 self._send_buffer = self._send_buffer[sent:]
                 if self._send_buffer == b"":
-                    self.initialize()
+                    self.initialize_output()
 
     def _json_encode(self, obj, encoding):
         """Apply the specified encoding to the JSON dictionary and shoot it back. Called by create_message_out()
@@ -151,22 +162,18 @@ class SockMessage:
         return message
 
     def _process_message_in_json_content(self):
-        """This method is called by process_message_in(). This is the one place where we will be making
-        modifications to an 'under bar' prefixed method. This has been modified to update the iteration and
-        the context for this instance of SockMessage. Remember that SockServer does not know these values
-        when it processes a connection request from a client and also remember that SockServer has its own
-        instance of SockMessage on the other end of the communication link. Thus, if self.iteration is -1,
-        then this is for sure the SockServer instance of SockMessage so we update the iteration and the
-        context as well (TLT)."""
+        """This method is called by process_message_in(). At this point, we have deconstructed the message
+        and, after determining whether this is a server instance or a client instance of SockMessage, branch
+        processing server actions or processing client actions."""
         content = self.message_in
-        action = content.get("action")
-        message = content.get("value")
-        context = content.get("context")
-        iteration = content.get("iteration")
-        if self.iteration == -1 and action == SOCK_SET_ITERATION:
-            self.iteration = iteration
-            self.context = context
-        print(f"Iteration {self.iteration} got message: {message}...")
+        message = content.get("value", "undefined")
+
+        if self._server_instance:
+            self._process_server_action()
+            print(f"Received Client message from iteration {self.iteration}:\n{message}")
+        else:
+            self._process_client_action()
+            print(f"Received Server message from iteration {self.iteration}:\n{message}")
 
     def _process_message_in_binary_content(self):
         """This method is called from process_message_in() when the content-type is not 'json/text'. I have
@@ -306,4 +313,28 @@ class SockMessage:
             self.message_in = data
             print(f'Binary data received {self.jsonheader["content-type"]} response from', self.addr)
             self._process_message_in_binary_content()
-        self.initialize()
+        self.initialize_input()
+
+    def _process_server_action(self):
+        content = self.message_in
+        action = content.get("action", "undefined")
+
+        if action == SOCK_SET_ITERATION:
+            context = content.get("context", "undefined")
+            iteration = content.get("iteration", -1)
+            if  self.iteration == -1:
+                self.iteration = iteration
+                self.context = context
+
+    def _process_client_action(self):
+        content = self.message_in
+        action = content.get("action", "undefined")
+
+        if action == SOCK_COMMAND:
+            value = content.get("value", "undefined")
+            cmd: List[str] = value.split()
+            output = subprocess.check_output(cmd).decode('utf-8')
+            self.message_out = create_message(action=SOCK_COMMAND_RESPONSE,
+                                              value=output, context=self.context,
+                                              iteration=self.iteration)
+#           print(output)

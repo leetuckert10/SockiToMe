@@ -126,10 +126,10 @@ def main():
     client.sock_object.message_out = create_message(action=SOCK_SET_ITERATION,
                                                     value=f"Hello my great SockServer from iteration {iteration}!",
                                                     iteration=iteration,
-                                                    context = context)
+                                                    context=context)
     client.event_loop()
 
 
 if __name__ == "__main__":
-    main_test()
     # main_test()
+    main()
