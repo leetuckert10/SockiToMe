@@ -4,6 +4,9 @@ import types
 import socket
 import selectors
 
+messages = [b'Message 1 from client', b'Message 2 from client']
+sel = selectors.DefaultSelector()
+
 
 def start_connections(h, p, num):
     server_addr = (h, p)
@@ -12,7 +15,12 @@ def start_connections(h, p, num):
         print("Starting connection", connid, "to", server_addr)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(False)
+
+        """ connect_ex() is used instead of connect() since connect() would immediately raise a BlockingIOError
+        exception. connect_ex() initially returns an error indicator, errno.EINPROGRESS, instead of raising an
+        exception while the connection is in progress. """
         sock.connect_ex(server_addr)
+
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         """It is very important to note that definition of this data is completely arbitrary."""
         data = types.SimpleNamespace(connid=connid,
@@ -23,7 +31,7 @@ def start_connections(h, p, num):
         sel.register(fileobj=sock, events=events, data=data)
 
 
-def service_connection(key: selectors.SelectorKey, mask:selectors.EVENT_READ | selectors.EVENT_WRITE):
+def service_connection(key: selectors.SelectorKey, mask: selectors.EVENT_READ | selectors.EVENT_WRITE):
     sock = key.fileobj
     data = key.data
 
@@ -31,7 +39,7 @@ def service_connection(key: selectors.SelectorKey, mask:selectors.EVENT_READ | s
         recv_data = sock.recv(1024)     # Should be ready to read.
         if recv_data:
             print(f"Received {recv_data.decode('utf-8')} from connection {data.connid}")
-            data.recv_total += len(recv_data)
+            data.recv_total += len(recv_data)   # Keep track of the total received as an exit point for client.
 
         if not recv_data or data.recv_total == data.msg_total:
             print(f"Closing connection {data.connid}")
@@ -48,16 +56,18 @@ def service_connection(key: selectors.SelectorKey, mask:selectors.EVENT_READ | s
             data.outb = data.outb[send:]
 
 
-host = '127.0.0.1'  # standard loopback interface address (localhost)
-port = 65432  # non-privileged ports are > 1023
-number = 5
-sel = selectors.DefaultSelector()
-messages = [b'Message 1 from client', b'Message 2 from client']
+def main():
+    host = '127.0.0.1'  # standard loopback interface address (localhost)
+    port = 65432  # non-privileged ports are > 1023
+    number = 2
+
+    start_connections(h=host, p=port, num=number)
+    # Event loop
+    while True:
+        events = sel.select(timeout=None)   # this blocks until there are sockets ready for I/O
+        for key, mask in events:
+            service_connection(key, mask)
 
 
-start_connections(h=host, p=port, num=number)
-# Event loop
-while True:
-    events = sel.select(timeout=None)   # this blocks until there are sockets ready for I/O
-    for key, mask in events:
-        service_connection(key, mask)
+if __name__ == "__main__":
+    main()
