@@ -2,7 +2,9 @@ import socket
 import pickle
 
 from items import *
-
+"""
+This script demonstrates how to pickle to send a custom class object across a socket connection.
+"""
 HOST = 'localhost'
 PORT = 50007
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

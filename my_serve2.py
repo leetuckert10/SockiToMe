@@ -4,10 +4,9 @@ import json
 from items import *
 
 
-class Fubar:
-    def __init__(self):
-        self.process_id = 0
-
+"""
+This is the server script for my_client2. See the documentation in that script.
+"""
 
 HOST = 'localhost'
 PORT = 50007

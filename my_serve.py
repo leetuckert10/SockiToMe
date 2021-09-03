@@ -13,7 +13,7 @@ conn, addr = s.accept()
 print("Connected by", addr)
 
 data = conn.recv(4096)
-fubar = pickle.loads(data)
+fubar = pickle.loads(data)      # This give the class back intact as the original QueueItem object.
 conn.close()
 
 print(fubar.print_data())
