@@ -59,14 +59,16 @@ by sel.select(). We use data to keep trick of what has be sent and received on t
 sel.register(fileobj=listen_sock, events=selectors.EVENT_READ, data=None)
 
 # Event loop
-while True:
-    """ sel.select() blocks until there are sockets ready for I/O. It returns a list of (key, events) tuples,
-    one for each socket. key is a SelectorKey namedtuple that contains a fileobj attribute. key.fileobj is
-    the socket object, and mask is an event mask of the operations that are ready. """
-    event = sel.select(timeout=None)
-    for key, mask in event:
-        print(f"{key}, {mask}")
-        if key.data is None:        # then we know this is the listening socket
-            accept_wrapper(key.fileobj)
-        else:                       # else, we know that this is a client that has already connected so service it
-            service_connection(key, mask)
+try:
+    while True:
+        """ sel.select() blocks until there are sockets ready for I/O. It returns a list of (key, events) tuples,
+        one for each socket. key is a SelectorKey namedtuple that contains a fileobj attribute. key.fileobj is
+        the socket object, and mask is an event mask of the operations that are ready. """
+        event = sel.select(timeout=None)
+        for key, mask in event:
+            if key.data is None:        # then we know this is the listening socket
+                accept_wrapper(key.fileobj)
+            else:                       # else, we know that this is a client that has already connected so service it
+                service_connection(key, mask)
+except KeyboardInterrupt:
+    exit(0)

@@ -63,10 +63,13 @@ def main():
 
     start_connections(h=host, p=port, num=number)
     # Event loop
-    while True:
-        events = sel.select(timeout=None)   # this blocks until there are sockets ready for I/O
-        for key, mask in events:
-            service_connection(key, mask)
+    try:
+        while True:
+            events = sel.select(timeout=None)   # this blocks until there are sockets ready for I/O
+            for key, mask in events:
+                service_connection(key, mask)
+    except KeyboardInterrupt:
+        exit(0)
 
 
 if __name__ == "__main__":
