@@ -16,12 +16,18 @@ PORT = 50007
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
 
-fubar = QueueItem(item=None, to_name="Carlee", from_name="Terry")
-fubar.new_output = "Hey Carlee Blue!"
-fubar.iteration_output = 4
-fubar.testbed_output = True
-fubar_as_dict = vars(fubar)
-byte_str = json.dumps(fubar_as_dict)
+sp = SubprocessItem(for_node="snot", argument_list=["b", "r", "5", "4", "9"], command_str="del all", action="boom",
+                    context="my ass")
+qi = QueueItem(item=sp, to_name="SockServ", from_name="YoMamma")
+item = qi.item
+qi.item = None
+
+qi_as_dict = vars(qi)
+item_as_dict = vars(item)
+merged = {**qi_as_dict, **item_as_dict}
+qi.item = item
+
+byte_str = json.dumps(merged)
 s.sendall(byte_str.encode(encoding="utf-8"))
 
 s.close()
